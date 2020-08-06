@@ -14,20 +14,50 @@ function buildCircle(content: HTMLElement[], scale=.8) {
 }
 
 function buildPage() {
-  const angle = Observable.create(null, 0);
+  const anglePlain = Observable.create(null, 0);
+  const angleFifths = Observable.create(null, 0);
+  function setAnglePlain(val: number) {
+    anglePlain.set(val);
+    angleFifths.set(findCloseCopy(val * 7, angleFifths.get()));
+  }
+  function setAngleFifths(val: number) {
+    angleFifths.set(val);
+    anglePlain.set(findCloseCopy(val * 7, anglePlain.get()));
+  }
+  function nfifths(i: number): number {
+    return (i * 7) % 12;
+  }
+
   return cssPage(
-    buildCircle(notes.map((n) => cssNote(n))),
-    dom.update(
-      buildCircle(scalePattern.map((inc, i) =>
-        cssHole(cssHole.cls('-close', !inc),
-          cssHole.cls('-major-start', i == 0),
-          cssHole.cls('-minor-start', i == 9),
-        )
-      )),
-      cssOverlay.cls(''),
-      cssCenter(),
-      dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
-      dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angle)),
+    cssWidget(
+      buildCircle(notes.map((n) => cssNote(n))),
+      dom.update(
+        buildCircle(scalePattern.map((inc, i) =>
+          cssHole(cssHole.cls('-close', !inc),
+            cssHole.cls('-major-start', i == 0),
+            cssHole.cls('-minor-start', i == 9),
+          )
+        )),
+        cssOverlay.cls(''),
+        cssCenter(),
+        dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
+        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
+      ),
+    ),
+    cssWidget(
+      buildCircle(notes.map((n, i) => cssNote(notes[nfifths(i)]))),
+      dom.update(
+        buildCircle(scalePattern.map((inc, i) =>
+          cssHole(cssHole.cls('-close', !scalePattern[nfifths(i)]),
+            cssHole.cls('-major-start', nfifths(i) == 0),
+            cssHole.cls('-minor-start', nfifths(i) == 9),
+          )
+        )),
+        cssOverlay.cls(''),
+        cssCenter(),
+        dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
+        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
+      ),
     ),
     cssLegend(
       cssLegendLine(cssHole(cssHole.cls('-major-start'), cssHole.cls('-legend')),
@@ -38,7 +68,7 @@ function buildPage() {
   );
 }
 
-function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number>) {
+function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number>, setAngle: (val: number) => void) {
   const rect = elem.getBoundingClientRect();
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
@@ -55,19 +85,21 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
     onStop(stopEv);
   }
   function onMove(moveEv: MouseEvent) {
-    const newAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX);
+    let newAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX);
     if (isNaN(newAngle)) { return; }
-    angle.set(angleOffset + newAngle);
+    // Add turns to minimize the rotation amount, so that transition is smooth.
+    angle.set(findCloseCopy(angleOffset + newAngle, angle.get()));
   }
   function onStop(stopEv: MouseEvent) {
     // Align circles.
-    elem.style.transition = 'transform 0.1s';
-    angle.set(Math.round(angle.get() / (2*Math.PI) * 12) / 12 * 2 * Math.PI);
-    setTimeout(() => { elem.style.transition = 'none'; }, 100);
+    setAngle(Math.round(angle.get() / (2*Math.PI) * 12) / 12 * 2 * Math.PI);
   }
 }
 
-
+// Add full turns to an angle to make it as close to refAngle as possible.
+function findCloseCopy(angle: number, refAngle: number) {
+  return angle + Math.round((refAngle - angle) / (2 * Math.PI)) * 2 * Math.PI;
+}
 
 const cssPage = styled('div', `
   box-sizing: border-box;
@@ -76,6 +108,7 @@ const cssPage = styled('div', `
   margin: 100px;
   --overlay-color: rgba(230, 200, 250);
   display: flex;
+  flex-wrap: wrap;
   align-items: top;
 
   *, *:before, *:after {
@@ -83,6 +116,11 @@ const cssPage = styled('div', `
      -moz-box-sizing: border-box;
           box-sizing: border-box;
   }
+`);
+
+const cssWidget = styled('div', `
+  margin-right: 60px;
+  position: relative;
 `);
 
 const cssCircle = styled('div', `
@@ -114,6 +152,7 @@ const cssOverlay = styled('div', `
   box-shadow: inset 0 0 0 12px var(--overlay-color);
   overflow: hidden;
   opacity: 0.8;
+  transition: transform 0.15s;
   &:hover {
     cursor: grab;
   }
@@ -155,11 +194,12 @@ const cssHole = styled('div', `
 `);
 
 const cssLegend = styled('div', `
+  margin-top: 40px;
+  margin-left: 80px;
 `);
 
 const cssLegendLine = styled('div', `
   padding: 8px;
-  margin-left: 80px;
   display: flex;
   align-items: center;
 `);
