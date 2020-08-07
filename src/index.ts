@@ -5,19 +5,48 @@ const scalePattern = [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1];
 
 const log2_3 = 1 - Math.log2(3);
 
-function buildCircle(content: HTMLElement[], scale=.8) {
+interface CircleOpts {
+  equal: boolean;   // Whether to assume equal tempering
+  fifths: boolean;  // Whethre the content is arranged as fifths
+  scale?: number;
+}
+
+function getCirclePositions({equal, fifths, scale = 0.8}: CircleOpts) {
+  const result: Array<{x: number, y: number}> = [];
+  for (let i = 0; i < 12; i++) {
+    let angle: number;
+    if (equal) {
+      angle = Math.PI * 2 * i / 12;
+    } else {
+      let val: number;
+      if (fifths) {
+        val = -log2_3 * ((i + 1) % 12 - 1) / 7;
+      } else {
+        val = -log2_3 * ((i * 7 + 1) % 12 - 1);
+      }
+      angle = (val - Math.floor(val)) * 2 * Math.PI;
+    }
+    result.push({
+      x: 1 + Math.sin(angle) * scale,
+      y: 1 - Math.cos(angle) * scale,
+    });
+  }
+  return result;
+}
+
+function buildCircle(content: HTMLElement[], options: CircleOpts) {
+  const pos = getCirclePositions(options);
   return cssCircle(content.map((elem, i) => {
-    // const angle = Math.PI * 2 * i / content.length;
-    const val = -log2_3 * ((i * 7) % 12);
-    const angle = (val - Math.floor(val)) * 2 * Math.PI;
+    const {x, y} = pos[i];
     return dom.update(content[i],
-      dom.style('top', (1 - Math.cos(angle) * scale) * 50 + '%'),
-      dom.style('left',  (1 + Math.sin(angle) * scale) * 50 + '%'),
+      dom.style('top', y * 50 + '%'),
+      dom.style('left', x * 50 + '%'),
     );
   }));
 }
 
 function buildPage() {
+  const equiTempered = Observable.create(null, true);
   const anglePlain = Observable.create(null, 0);
   const angleFifths = Observable.create(null, 0);
   function setAnglePlain(val: number) {
@@ -35,42 +64,50 @@ function buildPage() {
   return cssPage(
     cssSection(
       cssSectionTitle("Half-Tones in Order"),
-      cssWidget(
-        buildCircle(notes.map((n, i) => cssNote(n))),
-        dom.update(
-          buildCircle(scalePattern.map((inc, i) =>
-            cssHole(cssHole.cls('-close', !inc),
-              cssHole.cls('-major-start', i == 0),
-              cssHole.cls('-minor-start', i == 9),
-            )
-          )),
-          cssOverlay.cls(''),
-          overlayCanvas(),
-          dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
-          dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
-        ),
+      dom.domComputed(equiTempered, (equal) =>
+        cssWidget(
+          buildCircle(notes.map((n, i) => cssNote(n)), {equal, fifths: false}),
+          dom.update(
+            buildCircle(scalePattern.map((inc, i) =>
+              cssHole(cssHole.cls('-close', !inc),
+                cssHole.cls('-major-start', i == 0),
+                cssHole.cls('-minor-start', i == 9),
+              )
+            ), {equal, fifths: false}),
+            cssOverlay.cls(''),
+            overlayCanvas({equal, fifths: false}),
+            dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
+            dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
+          ),
+        )
       ),
     ),
     cssSection(
       cssSectionTitle("Circle of Fifths"),
-      cssWidget(
-        buildCircle(notes.map((n, i) => cssNote(notes[nfifths(i)]))),
-        dom.update(
-          buildCircle(scalePattern.map((inc, i) => {
-            const idx = nfifths(i);
-            return cssHole(cssHole.cls('-close', !scalePattern[idx]),
-              cssHole.cls('-major-start', idx == 0),
-              cssHole.cls('-minor-start', idx == 9),
-            );
-          })),
-          cssOverlay.cls(''),
-          overlayCanvas(),
-          dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
-          dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
-        ),
+      dom.domComputed(equiTempered, (equal) =>
+        cssWidget(
+          buildCircle(notes.map((n, i) => cssNote(notes[nfifths(i)])), {equal, fifths: true}),
+          dom.update(
+            buildCircle(scalePattern.map((inc, i) => {
+              const idx = nfifths(i);
+              return cssHole(cssHole.cls('-close', !scalePattern[idx]),
+                cssHole.cls('-major-start', idx == 0),
+                cssHole.cls('-minor-start', idx == 9),
+              );
+            }), {equal, fifths: true}),
+            cssOverlay.cls(''),
+            overlayCanvas({equal, fifths: true}),
+            dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
+            dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
+          ),
+        )
       ),
     ),
     cssLegend(
+      cssLegendLine(cssHole(cssHole.cls('-toggle'), cssHole.cls('-legend'),
+        dom.text((use) => use(equiTempered) ? 'Eq' : '5ths')),
+        dom.on('click', () => { equiTempered.set(!equiTempered.get()); }),
+        dom('div', 'Toggle Temperament')),
       cssLegendLine(cssHole(cssHole.cls('-major-start'), cssHole.cls('-legend')),
         dom('div', 'First note of the Major scale')),
       cssLegendLine(cssHole(cssHole.cls('-minor-start'), cssHole.cls('-legend')),
@@ -105,6 +142,7 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
   }
   function onStop(stopEv: MouseEvent) {
     const factor = 2 * Math.PI / 12;
+    // TODO the alignment to multiple of factor is wrong when not using equiTempered scale.
     if (isClick) {
       setAngle(findCloseCopy(Math.PI / 2 + Math.round(startAngle / factor) * factor, angle.get()));
     } else {
@@ -119,20 +157,18 @@ function findCloseCopy(angle: number, refAngle: number) {
   return angle + Math.round((refAngle - angle) / (2 * Math.PI)) * 2 * Math.PI;
 }
 
-function overlayCanvas(...domArgs: DomElementArg[]) {
+function overlayCanvas(options: CircleOpts, ...domArgs: DomElementArg[]) {
   const diam = 360;
   const radius = diam / 2;
   const elem = cssOverlayCanvas({height: String(diam), width: String(diam)}, ...domArgs);
   const ctx = elem.getContext('2d')!;
 
+  const pos = getCirclePositions(options);
   ctx.beginPath()
   ctx.arc(radius, radius, radius, 0, Math.PI*2, false); // outer (filled)
   for (let i = 0; i < 12; i++) {
-    // const angle = Math.PI * 2 * i / content.length;
-    const val = -log2_3 * ((i * 7) % 12);
-    const angle = (val - Math.floor(val)) * 2 * Math.PI;
-    const y = (1 - Math.cos(angle) * 0.8) * radius;
-    const x = (1 + Math.sin(angle) * 0.8) * radius;
+    const y = pos[i].y * radius;
+    const x = pos[i].x * radius;
     ctx.moveTo(x, y);
     ctx.arc(x, y, 30, 0, Math.PI*2, true); // outer (unfills it)
   }
@@ -237,6 +273,13 @@ const cssHole = styled('div', `
     position: relative;
     margin: 0 16px 0 0;
     box-shadow: none;
+  }
+  &-toggle {
+    border: 3px solid lightgrey;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
   }
 `);
 
