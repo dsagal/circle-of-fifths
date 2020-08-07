@@ -1,11 +1,15 @@
-import {dom, Observable, styled} from 'grainjs';
+import {dom, DomElementArg, Observable, styled} from 'grainjs';
 
 const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const scalePattern = [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1];
 
+const log2_3 = 1 - Math.log2(3);
+
 function buildCircle(content: HTMLElement[], scale=.8) {
   return cssCircle(content.map((elem, i) => {
-    const angle = Math.PI * 2 * i / content.length;
+    // const angle = Math.PI * 2 * i / content.length;
+    const val = -log2_3 * ((i * 7) % 12);
+    const angle = (val - Math.floor(val)) * 2 * Math.PI;
     return dom.update(content[i],
       dom.style('top', (1 - Math.cos(angle) * scale) * 50 + '%'),
       dom.style('left',  (1 + Math.sin(angle) * scale) * 50 + '%'),
@@ -41,7 +45,7 @@ function buildPage() {
             )
           )),
           cssOverlay.cls(''),
-          cssCenter(),
+          overlayCanvas(),
           dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
           dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
         ),
@@ -60,7 +64,7 @@ function buildPage() {
             );
           })),
           cssOverlay.cls(''),
-          cssCenter(),
+          overlayCanvas(),
           dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
           dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
         ),
@@ -113,6 +117,29 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
 // Add full turns to an angle to make it as close to refAngle as possible.
 function findCloseCopy(angle: number, refAngle: number) {
   return angle + Math.round((refAngle - angle) / (2 * Math.PI)) * 2 * Math.PI;
+}
+
+function overlayCanvas(...domArgs: DomElementArg[]) {
+  const diam = 360;
+  const radius = diam / 2;
+  const elem = cssOverlayCanvas({height: String(diam), width: String(diam)}, ...domArgs);
+  const ctx = elem.getContext('2d')!;
+
+  ctx.beginPath()
+  ctx.arc(radius, radius, radius, 0, Math.PI*2, false); // outer (filled)
+  for (let i = 0; i < 12; i++) {
+    // const angle = Math.PI * 2 * i / content.length;
+    const val = -log2_3 * ((i * 7) % 12);
+    const angle = (val - Math.floor(val)) * 2 * Math.PI;
+    const y = (1 - Math.cos(angle) * 0.8) * radius;
+    const x = (1 + Math.sin(angle) * 0.8) * radius;
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, 30, 0, Math.PI*2, true); // outer (unfills it)
+  }
+  // ctx.arc(radius, radius, 55, 0, Math.PI*2, true); // outer (unfills it)
+  ctx.fillStyle = "rgba(230, 200, 250)";
+  ctx.fill();
+  return elem;
 }
 
 const cssPage = styled('div', `
@@ -172,34 +199,33 @@ const cssOverlay = styled('div', `
   top: 0px;
   left: 0px;
   border-radius: 100%;
-  box-shadow: inset 0 0 0 12px var(--overlay-color);
   overflow: hidden;
-  opacity: 0.8;
+  opacity: 0.6;
   transition: transform 0.15s;
   cursor: grab;
 `);
 
-const cssCenter = styled('div', `
+const cssOverlayCanvas = styled('canvas', `
   position: absolute;
-  top: calc(180px - 110px);
-  left: calc(180px - 110px);
-  width: 220px;
-  height: 220px;
-  border-radius: 100%;
-  background-color: var(--overlay-color);
+  top: -1px;
+  left: -1px;
+  width: 360px;
+  height: 360px;
+  border-radius: 360px;
 `);
 
 const cssHole = styled('div', `
   position: absolute;
   border-radius: 48px;
   border: 1px solid grey;
+  box-shadow: 0 0 0 8px var(--overlay-color);
   width: 48px;
   height: 48px;
   margin-left: -24px;
   margin-top: -24px;
-  box-shadow: 0 0 0 24px var(--overlay-color);
   &-close {
     background-color: var(--overlay-color);
+    border: none;
   }
   &-major-start {
     border: 3px solid red;
