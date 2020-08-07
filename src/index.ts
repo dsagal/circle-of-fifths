@@ -29,34 +29,41 @@ function buildPage() {
   }
 
   return cssPage(
-    cssWidget(
-      buildCircle(notes.map((n) => cssNote(n))),
-      dom.update(
-        buildCircle(scalePattern.map((inc, i) =>
-          cssHole(cssHole.cls('-close', !inc),
-            cssHole.cls('-major-start', i == 0),
-            cssHole.cls('-minor-start', i == 9),
-          )
-        )),
-        cssOverlay.cls(''),
-        cssCenter(),
-        dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
-        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
+    cssSection(
+      cssSectionTitle("Half-Tones in Order"),
+      cssWidget(
+        buildCircle(notes.map((n, i) => cssNote(n))),
+        dom.update(
+          buildCircle(scalePattern.map((inc, i) =>
+            cssHole(cssHole.cls('-close', !inc),
+              cssHole.cls('-major-start', i == 0),
+              cssHole.cls('-minor-start', i == 9),
+            )
+          )),
+          cssOverlay.cls(''),
+          cssCenter(),
+          dom.style('transform', (use) => `rotate(${use(anglePlain)}rad)`),
+          dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, anglePlain, setAnglePlain)),
+        ),
       ),
     ),
-    cssWidget(
-      buildCircle(notes.map((n, i) => cssNote(notes[nfifths(i)]))),
-      dom.update(
-        buildCircle(scalePattern.map((inc, i) =>
-          cssHole(cssHole.cls('-close', !scalePattern[nfifths(i)]),
-            cssHole.cls('-major-start', nfifths(i) == 0),
-            cssHole.cls('-minor-start', nfifths(i) == 9),
-          )
-        )),
-        cssOverlay.cls(''),
-        cssCenter(),
-        dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
-        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
+    cssSection(
+      cssSectionTitle("Circle of Fifths"),
+      cssWidget(
+        buildCircle(notes.map((n, i) => cssNote(notes[nfifths(i)]))),
+        dom.update(
+          buildCircle(scalePattern.map((inc, i) => {
+            const idx = nfifths(i);
+            return cssHole(cssHole.cls('-close', !scalePattern[idx]),
+              cssHole.cls('-major-start', idx == 0),
+              cssHole.cls('-minor-start', idx == 9),
+            );
+          })),
+          cssOverlay.cls(''),
+          cssCenter(),
+          dom.style('transform', (use) => `rotate(${use(angleFifths)}rad)`),
+          dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angleFifths, setAngleFifths)),
+        ),
       ),
     ),
     cssLegend(
@@ -78,6 +85,7 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
 
   const upLis = dom.onElem(document, 'mouseup', stop, {useCapture: true});
   const moveLis = dom.onElem(document, 'mousemove', onMove, {useCapture: true});
+  let isClick = true;
   startEv.preventDefault();
   function stop(stopEv: MouseEvent) {
     moveLis.dispose();
@@ -85,14 +93,20 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
     onStop(stopEv);
   }
   function onMove(moveEv: MouseEvent) {
+    isClick = false;
     let newAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX);
     if (isNaN(newAngle)) { return; }
     // Add turns to minimize the rotation amount, so that transition is smooth.
     angle.set(findCloseCopy(angleOffset + newAngle, angle.get()));
   }
   function onStop(stopEv: MouseEvent) {
-    // Align circles.
-    setAngle(Math.round(angle.get() / (2*Math.PI) * 12) / 12 * 2 * Math.PI);
+    const factor = 2 * Math.PI / 12;
+    if (isClick) {
+      setAngle(findCloseCopy(Math.PI / 2 + Math.round(startAngle / factor) * factor, angle.get()));
+    } else {
+      // Align to nearest circle.
+      setAngle(Math.round(angle.get() / factor) * factor);
+    }
   }
 }
 
@@ -105,7 +119,7 @@ const cssPage = styled('div', `
   box-sizing: border-box;
   font-family: sans-serif;
   position: relative;
-  margin: 100px;
+  margin: 40px;
   --overlay-color: rgba(230, 200, 250);
   display: flex;
   flex-wrap: wrap;
@@ -118,8 +132,17 @@ const cssPage = styled('div', `
   }
 `);
 
+const cssSection = styled('div', `
+  margin-right: 40px;
+`);
+
+const cssSectionTitle = styled('div', `
+  margin: 20px;
+  text-align: center;
+  font-size: larger;
+`);
+
 const cssWidget = styled('div', `
-  margin-right: 60px;
   position: relative;
 `);
 
@@ -153,9 +176,7 @@ const cssOverlay = styled('div', `
   overflow: hidden;
   opacity: 0.8;
   transition: transform 0.15s;
-  &:hover {
-    cursor: grab;
-  }
+  cursor: grab;
 `);
 
 const cssCenter = styled('div', `
@@ -194,8 +215,7 @@ const cssHole = styled('div', `
 `);
 
 const cssLegend = styled('div', `
-  margin-top: 40px;
-  margin-left: 80px;
+  margin: 40px;
 `);
 
 const cssLegendLine = styled('div', `
