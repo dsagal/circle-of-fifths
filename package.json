@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "build": "tsc --build src && webpack --config webpack.config.js --mode development",
-    "start": "tsc --build src --watch & webpack-dev-server --config webpack.config.js"
+    "start": "tsc --build src --watch & webpack-dev-server --config webpack.config.js",
+    "gh-pages": "tsc --build src && webpack --config webpack.config.js --mode production && cp dist/* static/* docs"
   },
   "dependencies": {
     "grainjs": "^1.0.1"
