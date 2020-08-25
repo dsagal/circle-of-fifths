@@ -6,6 +6,7 @@ module.exports = {
   target: 'web',
   entry: {
     index: "./build/index.js",
+    logcircle: "./build/log-circle.js",
   },
   output: {
     filename: "[name].js",
