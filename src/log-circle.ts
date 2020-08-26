@@ -1,13 +1,13 @@
-import {Computed, dom, DomElementArg, DomContents, Observable, styled} from 'grainjs';
+import {Computed, dom, DomElementArg, DomContents, MultiHolder, Observable, styled} from 'grainjs';
 
-interface Fraction {
+interface Tick {
   value: number;
   label: DomContents;
 }
 
 const N = 10;
 
-function getFractions(): Fraction[] {
+function buildTicks(): Tick[] {
   /*
   const frets = [...Array(12)].map((_, i) => {
     const value = Math.pow(2, -i/12);
@@ -18,7 +18,8 @@ function getFractions(): Fraction[] {
   return [
     ...[...Array(N * 10 + 1)].map((_, i) => {
       const value = i / N / 10;
-      const label = i % 10 === 0 ? frac(i / N) : null;
+      const label = i % 10 === 0 ? frac(i / 10 / N) : null;
+      console.log("value", value);
       return {value, label};
     }),
 
@@ -55,7 +56,6 @@ function getFractions(): Fraction[] {
   ];
 }
 
-const circleFactor = 0.25;
 
 // If the string is stretched so that the left-most number is t, then:
 // - the circle has wrapped integral (1 -> t) of L/x, i.e. L*ln(t).
@@ -63,40 +63,46 @@ const circleFactor = 0.25;
 // - with radius R, that's angle = ln(t) / r radians.
 // - therefore stretch t is Math.exp(angle * r)
 // - mark m is at angle ln(m) / r radians.
+// - for music, want ln(1/2)/r = 2pi => r=ln(1/2)/2pi=ln2/2pi = R/L.
+//   R+L = 100% => R=100%/(1+1/r)=100%/(1+2pi/ln2)
+
+const circleFactor = Math.LN2 / (2*Math.PI);
+const circleRadiusPercent = 100 / (1 + 1 / circleFactor);
+
 
 function buildPage() {
-  const angle = Observable.create(null, 0);
-  const stretch = Computed.create(null, angle, (use, _angle) =>
-    Math.exp(-_angle * circleFactor));
-
-  function setAnglePlain(val: number) {
-    angle.set(val);
-  }
   return cssPage(
     cssSection(
       cssSectionTitle("String Length"),
-      cssLogCircle(
-        cssCirclePart(
-          dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
-          cssCircleDrag(
-            dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angle, setAnglePlain)),
+      dom.create(buildLogCircle, buildTicks),
+    )
+  );
+}
+
+function buildLogCircle(owner: MultiHolder, ticks: () => Tick[]) {
+  const angle = Observable.create(owner, 0);
+  const stretch = Computed.create(owner, angle, (use) => Math.exp(-use(angle) * circleFactor));
+
+  return cssLogCircle(
+    cssCirclePart(
+      dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
+      cssCircleDrag(
+        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angle)),
+      ),
+      dom.forEach(ticks(), ({label, value}) =>
+        cssMarkCircle(cssTick(), label,
+          dom.show((use) => value * use(stretch) >= 1),
+          (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
+        )
+      )
+    ),
+    cssFlatPart(
+      cssRuler(
+        dom.forEach(ticks(), ({label, value}) =>
+          cssMark(cssTick(), label,
+            dom.show((use) => value * use(stretch) < 1),
+            dom.style('right', (use) => (value * use(stretch) * 100) + '%')
           ),
-          dom.forEach(getFractions(), ({label, value}) =>
-            cssMarkCircle(cssTick(), label,
-              dom.show((use) => value * use(stretch) >= 1),
-              (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
-            )
-          )
-        ),
-        cssFlatPart(
-          cssRuler(
-            dom.forEach(getFractions(), ({label, value}) =>
-              cssMark(cssTick(), label,
-                dom.show((use) => value * use(stretch) < 1),
-                dom.style('right', (use) => (value * use(stretch) * 100) + '%')
-              ),
-            )
-          )
         )
       )
     )
@@ -108,7 +114,7 @@ function showCircleMark(elem: HTMLElement, value: number) {
   elem.style.transform = `rotate(${angle}rad)`;
 }
 
-function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number>, setAngle: (val: number) => void) {
+function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number>) {
   const rect = elem.getBoundingClientRect();
   const centerX = rect.left + rect.width / 2;
   const centerY = rect.top + rect.height / 2;
@@ -119,17 +125,12 @@ function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number
   const upLis = dom.onElem(document, 'mouseup', onStop, {useCapture: true});
   const moveLis = dom.onElem(document, 'mousemove', onMove, {useCapture: true});
 
-  let isClick = true;
   startEv.preventDefault();
   function onStop(stopEv: MouseEvent) {
     moveLis.dispose();
     upLis.dispose();
-    if (!isClick) {
-      setAngle(angle.get());
-    }
   }
   function onMove(moveEv: MouseEvent) {
-    isClick = false;
     let newAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX);
     if (isNaN(newAngle)) { return; }
     angle.set(findCloseCopy(angleOffset + newAngle, angle.get()));
@@ -185,8 +186,8 @@ const cssCirclePart = styled('div', `
   position: relative;
   border: 3px solid #00ca00;
   border-radius: 100%;
-  width: 40%;
-  margin-right: -20%;
+  width: ${circleRadiusPercent * 2}%;
+  margin-right: -${circleRadiusPercent}%;
   display: flex;
   justify-content: center;
   align-items: center;
