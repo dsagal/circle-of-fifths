@@ -6,29 +6,52 @@ interface Mark {
 }
 
 
-function buildMarks(densityLevel: number): Mark[] {
+// If the string is stretched so that the left-most number is t, then:
+// - the circle has wrapped integral (1 -> t) of L/x, i.e. L*ln(t).
+// - let circleFactor r = R / L (e.g. 0.25)
+// - with radius R, that's angle = ln(t) / r radians.
+// - therefore stretch t is Math.exp(angle * r)
+// - mark m is at angle ln(m) / r radians.
+// - for music, want ln(1/2)/r = 2pi => r=ln(1/2)/2pi=ln2/2pi = R/L.
+//   R+L = 100% => R=100%/(1+1/r)=100%/(1+2pi/ln2)
+
+// Let's say we initially display N=10 ticks between 0 and 1.
+//    Let's call it densityLevel 1.
+// A new level of ticks (twice denser, level 2) appears for 1/stretch<=3/4, and remains the highest
+// level while 1/stretch > 3/8.
+//    => log2(s) in (log2(3/8), log2(3/4)] = log2(3) - (3, 2]
+//    => log2(3) - log2(s) in [2, 3)
+//    => Math.floor(log2(3) - log2(s)) == 2
+//    => densityLevel = Math.floor(log2(3) - log2(s)) = Math.floor(log2(3) + log2(stretch))
+// This new level of ticks covers the interval until 1/2, i.e. Math.pow(2, 1 - densityLevel)
+// Can drop ticks at densityLevel 1 once stretch <= 1/4 (densityLevel 3) appears by that point.
+// OK to say we'll drop ticks at level 1 once densityLevel 4 appears.
+// Ticks NOT dropped will be hidden when needed.
+
+// const factor = 10;
+// const levelStep = 20;
+const factor = 2;
+const levelStep = 3;
+const circleFactor = Math.log(factor) / (2*Math.PI);
+const circleRadiusPercent = 100 / (1 + 1 / circleFactor);
+
+function buildMarks(owner: MultiHolder, stretch: Observable<number>): Observable<Mark[]> {
+  const densityLevel = Computed.create(owner, stretch,
+    (use, s) => Math.floor(Math.log(levelStep * s) / Math.log(factor)));
+  return Computed.create<Mark[]>(owner, use => _buildMarks(use(densityLevel)));
+}
+
+function _buildMarks(densityLevel: number): Mark[] {
   console.log("buildMarks", densityLevel);
-  // Let's say we initially display N=10 ticks between 0 and 1.
-  //    Let's call it densityLevel 1.
-  // A new level of ticks (twice denser, level 2) appears for 1/stretch<=3/4, and remains the highest
-  // level while 1/stretch > 3/8.
-  //    => log2(s) in (log2(3/8), log2(3/4)] = log2(3) - (3, 2]
-  //    => log2(3) - log2(s) in [2, 3)
-  //    => Math.floor(log2(3) - log2(s)) == 2
-  //    => densityLevel = Math.floor(log2(3) - log2(s)) = Math.floor(log2(3) + log2(stretch))
-  // This new level of ticks covers the interval until 1/2, i.e. Math.pow(2, 1 - densityLevel)
-  // Can drop ticks at densityLevel 1 once stretch <= 1/4 (densityLevel 3) appears by that point.
-  // OK to say we'll drop ticks at level 1 once densityLevel 4 appears.
-  // Ticks NOT dropped will be hidden when needed.
   const marks: Mark[] = [];
   const N = 100;
   let start = 0;
   for (let d = densityLevel; d >= densityLevel - 2; d--) {
-    const maxTick = Math.pow(2, 1 - d);
-    const count = (d === densityLevel ? N : N / 2);
+    const maxTick = Math.pow(factor, 1 - d);
+    const count = (d === densityLevel ? N : N - (N / factor));
     for (let i = 0; i < count; i++) {
       const value = start + maxTick * i / N;
-      const label = i % 10 === 0 ? frac(start + maxTick * i / N) : null;
+      const label = i % 10 === 0 ? frac(parseFloat((start + maxTick * i / N).toFixed(8))) : null;
       marks.push({value, label});
     }
     start = maxTick;
@@ -84,19 +107,6 @@ function buildMarks(densityLevel: number): Mark[] {
   // ];
 }
 
-
-// If the string is stretched so that the left-most number is t, then:
-// - the circle has wrapped integral (1 -> t) of L/x, i.e. L*ln(t).
-// - let circleFactor r = R / L (e.g. 0.25)
-// - with radius R, that's angle = ln(t) / r radians.
-// - therefore stretch t is Math.exp(angle * r)
-// - mark m is at angle ln(m) / r radians.
-// - for music, want ln(1/2)/r = 2pi => r=ln(1/2)/2pi=ln2/2pi = R/L.
-//   R+L = 100% => R=100%/(1+1/r)=100%/(1+2pi/ln2)
-
-const circleFactor = Math.LN2 / (2*Math.PI);
-const circleRadiusPercent = 100 / (1 + 1 / circleFactor);
-
 function buildPage() {
   return cssPage(
     cssSection(
@@ -109,10 +119,7 @@ function buildPage() {
 function buildLogCircle(owner: MultiHolder) {
   const angle = Observable.create(owner, 0);
   const stretch = Computed.create(owner, angle, (use, a) => Math.exp(-a * circleFactor));
-  const densityLevel = Computed.create(owner, stretch, (use, s) => Math.floor(Math.log2(3) + Math.log2(s)));
-  densityLevel.addListener((d) => console.log("stretch", stretch.get(), "densityLevel", d));
-  const rulerMarks = Computed.create<Mark[]>(owner, use => buildMarks(use(densityLevel)));
-  const circleMarks = Computed.create<Mark[]>(owner, use => buildMarks(use(densityLevel)));
+  const marksBuilder = buildMarks.bind(null, owner, stretch);
 
   return cssLogCircle(
     cssCirclePart(
@@ -120,11 +127,11 @@ function buildLogCircle(owner: MultiHolder) {
       cssCircleDrag(
         dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angle)),
       ),
-      dom.forEach(rulerMarks, ({label, value}) =>
+      dom.forEach(marksBuilder(), ({label, value}) =>
         cssMarkCircle(cssTick(cssTick.cls('-short', !label)), label,
           dom.show((use) => {
             const k = value * use(stretch);
-            return k >= 1 && k < 2 && value <= 1;
+            return k >= 1 && k < factor && value <= 1;
           }),
           (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
         )
@@ -132,7 +139,7 @@ function buildLogCircle(owner: MultiHolder) {
     ),
     cssFlatPart(
       cssRuler(
-        dom.forEach(circleMarks, ({label, value}) =>
+        dom.forEach(marksBuilder(), ({label, value}) =>
           cssMark(cssTick(cssTick.cls('-short', !label)), label,
             dom.show((use) => value * use(stretch) < 1),
             dom.style('right', (use) => (value * use(stretch) * 100) + '%')
@@ -249,7 +256,7 @@ const cssCircleDrag = styled('div', `
 `);
 
 const cssFlatPart = styled('div', `
-  width: 80%;
+  flex: auto;
   position: relative;
 `);
 
