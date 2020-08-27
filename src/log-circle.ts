@@ -28,10 +28,10 @@ interface Mark {
 // OK to say we'll drop ticks at level 1 once densityLevel 4 appears.
 // Ticks NOT dropped will be hidden when needed.
 
-// const factor = 10;
-// const levelStep = 20;
-const factor = 2;
-const levelStep = 3;
+const factor = 10;
+const levelStep = 25;
+// const factor = 2;
+// const levelStep = 3;
 const circleFactor = Math.log(factor) / (2*Math.PI);
 const circleRadiusPercent = 100 / (1 + 1 / circleFactor);
 
@@ -42,7 +42,6 @@ function buildMarks(owner: MultiHolder, stretch: Observable<number>): Observable
 }
 
 function _buildMarks(densityLevel: number): Mark[] {
-  console.log("buildMarks", densityLevel);
   const marks: Mark[] = [];
   const N = 100;
   let start = 0;
@@ -56,55 +55,7 @@ function _buildMarks(densityLevel: number): Mark[] {
     }
     start = maxTick;
   }
-  console.log("BUILT", marks.length, "MARKS");
   return marks;
-
-  /*
-  const frets = [...Array(12)].map((_, i) => {
-    const value = Math.pow(2, -i/12);
-    const label = frac(`F${i}`, undefined, cssFrac.cls('-lower1'));
-    return {value, label};
-  });
-  */
-  // const N = 10 * Math.pow(2, scaleBase2);
-  // return [
-  //   ...[...Array(N * 10 + 1)].map((_, i) => {
-  //     const value = i / N / 10;
-  //     const label = i % 10 === 0 ? frac(i / 10 / N) : null;
-  //     return {value, label};
-  //   }),
-
-  //   /*
-  //   {value: 1, label: frac(1)},
-  //   {value: 3/4, label: frac(3, 4)},
-  //   {value: 2/3, label: frac(2, 3)},
-  //   {value: 1/2, label: frac(1, 2)},
-  //   {value: 1/3, label: frac(1, 3)},
-  //   {value: 1/4, label: frac(1, 4)},
-  //   {value: 0, label: frac(0)},
-  //   */
-  //   /*
-  //   {value: 1, label: frac(1)},
-  //   {value: 8/9, label: frac(8, 9)},
-  //   {value: 4/5, label: frac(4, 5)},
-  //   {value: 3/4, label: frac(3, 4)},
-  //   {value: 2/3, label: frac(2, 3)},
-  //   {value: 3/5, label: frac(3, 5)},
-  //   {value: 8/15, label: frac(8, 15)},
-  //   {value: 1/2, label: frac(1, 2)},
-  //   {value: 4/9, label: frac(4, 9)},
-  //   {value: 2/5, label: frac(2, 5)},
-  //   {value: 1/3, label: frac(1, 3)},
-  //   {value: 1/4, label: frac(1, 4)},
-  //   {value: 1/5, label: frac(1, 5)},
-  //   {value: 0, label: frac(0)},
-  //   {value: 16/27, label: frac(16, 27, cssFrac.cls('-lower2'))},
-  //   {value: 64/81, label: frac(64, 81, cssFrac.cls('-lower2'))},
-  //   {value: 128/243, label: frac(128, 243, cssFrac.cls('-lower2'))},
-  //   {value: 512/729, label: frac(512, 729, cssFrac.cls('-lower2'))},
-  //   ...frets
-  //   */
-  // ];
 }
 
 function buildPage() {
@@ -122,72 +73,45 @@ function buildLogCircle(owner: MultiHolder) {
   const stretch = Computed.create(owner, angle, (use, a) => Math.exp(-a * circleFactor));
   const marksBuilder = buildMarks.bind(null, owner, stretch);
 
-  return cssLogCircle(
+  return [
     cssScrollOuter(
       cssScrollInner(),
       dom.on('scroll', (ev, elem) => {
         angle.set(-elem.scrollTop / (elem.offsetWidth * circleRadiusPercent / 100));
       }),
     ),
-    cssCirclePart(
-      dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
-      cssCircleDrag(
-        dom.on('mousedown', (ev, elem) => rotate(ev, elem as HTMLElement, angle)),
-      ),
-      dom.forEach(marksBuilder(), ({label, value}) =>
-        cssMarkCircle(cssTick(cssTick.cls('-short', !label)), label,
-          dom.show((use) => {
-            const k = value * use(stretch);
-            return k >= 1 && k < factor && value <= 1;
-          }),
-          (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
-        )
-      )
-    ),
-    cssFlatPart(
-      cssRuler(
+    cssLogCircle(
+      cssCircleMessage('Scroll down to turn'),
+      cssCirclePart(
+        dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
+        cssCircleCenter(),
         dom.forEach(marksBuilder(), ({label, value}) =>
-          cssMark(cssTick(cssTick.cls('-short', !label)), label,
-            dom.show((use) => value * use(stretch) < 1),
-            dom.style('right', (use) => (value * use(stretch) * 100) + '%')
-          ),
+          cssMarkCircle(cssTick(cssTick.cls('-short', !label)), label,
+            dom.show((use) => {
+              const k = value * use(stretch);
+              return k >= 1 && k < factor && value <= 1;
+            }),
+            (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
+          )
+        )
+      ),
+      cssFlatPart(
+        cssRuler(
+          dom.forEach(marksBuilder(), ({label, value}) =>
+            cssMark(cssTick(cssTick.cls('-short', !label)), label,
+              dom.show((use) => value * use(stretch) < 1),
+              dom.style('right', (use) => (value * use(stretch) * 100) + '%')
+            ),
+          )
         )
       )
     )
-  );
+  ];
 }
 
 function showCircleMark(elem: HTMLElement, value: number) {
   const angle = -Math.log(value) / circleFactor
   elem.style.transform = `rotate(${angle}rad)`;
-}
-
-function rotate(startEv: MouseEvent, elem: HTMLElement, angle: Observable<number>) {
-  const rect = elem.getBoundingClientRect();
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  const startAngle = Math.atan2(startEv.clientY - centerY, startEv.clientX - centerX);
-  if (isNaN(startAngle)) { return; }
-  const angleOffset = angle.get() - startAngle;
-
-  const upLis = dom.onElem(document, 'mouseup', onStop, {useCapture: true});
-  const moveLis = dom.onElem(document, 'mousemove', onMove, {useCapture: true});
-
-  startEv.preventDefault();
-  function onStop(stopEv: MouseEvent) {
-    moveLis.dispose();
-    upLis.dispose();
-  }
-  function onMove(moveEv: MouseEvent) {
-    let newAngle = Math.atan2(moveEv.clientY - centerY, moveEv.clientX - centerX);
-    if (isNaN(newAngle)) { return; }
-    angle.set(findCloseCopy(angleOffset + newAngle, angle.get()));
-  }
-}
-
-// Add full turns to an angle to make it as close to refAngle as possible.
-function findCloseCopy(angle: number, refAngle: number) {
-  return angle + Math.round((refAngle - angle) / (2 * Math.PI)) * 2 * Math.PI;
 }
 
 export function frac(numer: number|string, denom?: number|string, ...args: DomElementArg[]) {
@@ -198,6 +122,7 @@ export function frac(numer: number|string, denom?: number|string, ...args: DomEl
 
 const cssPage = styled('div', `
   box-sizing: border-box;
+  overflow: hidden;
   font-family: sans-serif;
   position: relative;
   height: 100vh;
@@ -230,10 +155,12 @@ const cssSectionTitle = styled('div', `
 
 const cssLogCircle = styled('div', `
   display: flex;
+  position: relative;
 `);
 
 const cssScrollOuter = styled('div', `
   position: absolute;
+  z-index: 10;
   overflow: scroll;
   top: 0px;
   left: 0px;
@@ -245,6 +172,16 @@ const cssScrollInner = styled('div', `
   width: 100%;
   height: 10000%;
 `);
+
+const cssCircleMessage = styled('div', `
+  position: absolute;
+  left: 0px;
+  top: ${circleRadiusPercent / 2}%;
+  width: ${circleRadiusPercent * 2}%;
+  text-align: center;
+  color: #ccc;
+`);
+
 const cssCirclePart = styled('div', `
   position: relative;
   border: 3px solid #00ca00;
@@ -262,19 +199,14 @@ const cssCirclePart = styled('div', `
   }
 `);
 
-const cssCircleDrag = styled('div', `
+const cssCircleCenter = styled('div', `
   position: absolute;
-  top: 0px;
-  left: 0px;
-  border: 48px solid #ddd;
+  top: calc(50% - 25px);
+  left: calc(50% - 25px);
+  border: 3px dotted #00ca00;
   border-radius: 100%;
-  width: 80%;
-  height: 80%;
-  margin: 10%;
-  cursor: pointer;
-  &:hover {
-    border-color: #ccc;
-  }
+  width: 50px;
+  height: 50px;
 `);
 
 const cssFlatPart = styled('div', `
