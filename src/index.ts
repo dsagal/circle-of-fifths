@@ -1,6 +1,9 @@
 import {dom, DomElementArg, Observable, styled} from 'grainjs';
 
-const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const sharp = "\u266f";
+const flat = "\u266d";
+
+const notes = ["C", "C\u266f", "D", "D#", "E", "F", "F#", "G", "G#", "A", `A${sharp}\nB${flat}`, "B"];
 const scalePattern = [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1];
 
 const log2_3 = 1 - Math.log2(3);
