@@ -108,6 +108,7 @@ function _buildMarks(densityLevel: number): Mark[] {
 }
 
 function buildPage() {
+  history.scrollRestoration = 'manual';
   return cssPage(
     cssSection(
       cssSectionTitle("String Length"),
@@ -122,6 +123,12 @@ function buildLogCircle(owner: MultiHolder) {
   const marksBuilder = buildMarks.bind(null, owner, stretch);
 
   return cssLogCircle(
+    cssScrollOuter(
+      cssScrollInner(),
+      dom.on('scroll', (ev, elem) => {
+        angle.set(-elem.scrollTop / (elem.offsetWidth * circleRadiusPercent / 100));
+      }),
+    ),
     cssCirclePart(
       dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
       cssCircleDrag(
@@ -193,7 +200,9 @@ const cssPage = styled('div', `
   box-sizing: border-box;
   font-family: sans-serif;
   position: relative;
-  margin: 40px;
+  height: 100vh;
+  width: 100vw;
+  padding: 40px;
   --overlay-color: rgba(230, 200, 250);
   display: flex;
   flex-wrap: wrap;
@@ -223,6 +232,19 @@ const cssLogCircle = styled('div', `
   display: flex;
 `);
 
+const cssScrollOuter = styled('div', `
+  position: absolute;
+  overflow: scroll;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+`);
+
+const cssScrollInner = styled('div', `
+  width: 100%;
+  height: 10000%;
+`);
 const cssCirclePart = styled('div', `
   position: relative;
   border: 3px solid #00ca00;
@@ -312,5 +334,7 @@ const cssFracPart = styled('div', `
   }
 `);
 
-dom.update(document.body, buildPage());
+dom.update(document.body,
+  {style: 'margin: 0; padding: 0'},
+  buildPage());
 
