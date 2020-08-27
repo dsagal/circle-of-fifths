@@ -28,10 +28,12 @@ interface Mark {
 // OK to say we'll drop ticks at level 1 once densityLevel 4 appears.
 // Ticks NOT dropped will be hidden when needed.
 
-const factor = 10;
-const levelStep = 25;
-// const factor = 2;
-// const levelStep = 3;
+const settings = [
+  {factor: 10, levelStep: 25},
+  {factor: 2, levelStep: 3},
+];
+const {factor, levelStep} = settings[0];
+
 const circleFactor = Math.log(factor) / (2*Math.PI);
 const circleRadiusPercent = 100 / (1 + 1 / circleFactor);
 
@@ -47,10 +49,13 @@ function _buildMarks(densityLevel: number): Mark[] {
   let start = 0;
   for (let d = densityLevel; d >= densityLevel - 2; d--) {
     const maxTick = Math.pow(factor, 1 - d);
+    const denom = Math.pow(10, d);
+    const denomStr = denom >= 1e10 ? denom.toExponential() : denom.toString();
     const count = (d === densityLevel ? N : N - (N / factor));
     for (let i = 0; i < count; i++) {
       const value = start + maxTick * i / N;
-      const label = i % 10 === 0 ? frac(parseFloat((start + maxTick * i / N).toFixed(8))) : null;
+      const label = i % 10 !== 0 ? null :
+        frac(Math.round(value * denom), (denom === 1 || value === 0) ? undefined : denomStr);
       marks.push({value, label});
     }
     start = maxTick;
@@ -81,8 +86,10 @@ function buildLogCircle(owner: MultiHolder) {
       }),
     ),
     cssLogCircle(
-      cssCircleMessage('Scroll down to turn'),
       cssCirclePart(
+        cssCircleMessage('Scroll down to turn',
+          dom.style('opacity', (use) => String(Math.max(0, 1 + use(angle) / Math.PI * 2))),
+        ),
         dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
         cssCircleCenter(),
         dom.forEach(marksBuilder(), ({label, value}) =>
@@ -91,7 +98,7 @@ function buildLogCircle(owner: MultiHolder) {
               const k = value * use(stretch);
               return k >= 1 && k < factor && value <= 1;
             }),
-            (elem) => { setTimeout(() => showCircleMark(elem, value), 0); },
+            (elem) => showCircleMark(elem, value),
           )
         )
       ),
@@ -110,13 +117,17 @@ function buildLogCircle(owner: MultiHolder) {
 }
 
 function showCircleMark(elem: HTMLElement, value: number) {
-  const angle = -Math.log(value) / circleFactor
+  const angle = -Math.log(value) / circleFactor;
   elem.style.transform = `rotate(${angle}rad)`;
 }
 
+function fracFontSize(value: number|string) {
+  return cssFracPart.cls('-sz' + Math.min(10, String(value).length));
+}
+
 export function frac(numer: number|string, denom?: number|string, ...args: DomElementArg[]) {
-  return cssFrac(cssFracPart('' + numer),
-    denom ? cssFracPart('' + denom) : null,
+  return cssFrac(cssFracPart('' + numer, denom ? fracFontSize(denom) : null),
+    denom ? cssFracPart('' + denom, fracFontSize(denom)) : null,
     ...args);
 }
 
@@ -176,8 +187,8 @@ const cssScrollInner = styled('div', `
 const cssCircleMessage = styled('div', `
   position: absolute;
   left: 0px;
-  top: ${circleRadiusPercent / 2}%;
-  width: ${circleRadiusPercent * 2}%;
+  top: 40%;
+  width: 100%;
   text-align: center;
   color: #ccc;
 `);
@@ -201,12 +212,12 @@ const cssCirclePart = styled('div', `
 
 const cssCircleCenter = styled('div', `
   position: absolute;
-  top: calc(50% - 25px);
-  left: calc(50% - 25px);
-  border: 3px dotted #00ca00;
+  top: 25%;
+  left: 25%;
+  border: 6px dotted #00ca00;
   border-radius: 100%;
-  width: 50px;
-  height: 50px;
+  width: 50%;
+  height: 50%;
 `);
 
 const cssFlatPart = styled('div', `
@@ -264,6 +275,10 @@ const cssFracPart = styled('div', `
   &:nth-child(2) {
     border-top: 1px solid black;
   }
+  &-sz3 { font-size: 12px; }
+  &-sz4 { font-size: 11px; }
+  &-sz5 { font-size: 10px; }
+  &-sz6, &-sz7, &-sz8, &-sz9, &-sz10 { font-size: 9px; }
 `);
 
 dom.update(document.body,
