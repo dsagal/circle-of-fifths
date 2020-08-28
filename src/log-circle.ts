@@ -5,7 +5,6 @@ interface Mark {
   label: DomContents;
 }
 
-
 // If the string is stretched so that the left-most number is t, then:
 // - the circle has wrapped integral (1 -> t) of L/x, i.e. L*ln(t).
 // - let circleFactor r = R / L (e.g. 0.25)
@@ -78,13 +77,13 @@ function buildLogCircle(owner: MultiHolder) {
   const stretch = Computed.create(owner, angle, (use, a) => Math.exp(-a * circleFactor));
   const marksBuilder = buildMarks.bind(null, owner, stretch);
 
+  dom.update(document.body, cssScrollInner());
+  dom.onElem(window, 'scroll', (ev) => {
+    const elem = document.documentElement;
+    angle.set(-elem.scrollTop / (elem.offsetWidth * circleRadiusPercent / 100));
+  });
+
   return [
-    cssScrollOuter(
-      cssScrollInner(),
-      dom.on('scroll', (ev, elem) => {
-        angle.set(-elem.scrollTop / (elem.offsetWidth * circleRadiusPercent / 100));
-      }),
-    ),
     cssLogCircle(
       cssCirclePart(
         cssCircleMessage('Scroll down to turn',
@@ -135,7 +134,8 @@ const cssPage = styled('div', `
   box-sizing: border-box;
   overflow: hidden;
   font-family: sans-serif;
-  position: relative;
+  position: fixed;
+  top: 0px;
   height: 100vh;
   width: 100vw;
   padding: 40px;
@@ -169,19 +169,10 @@ const cssLogCircle = styled('div', `
   position: relative;
 `);
 
-const cssScrollOuter = styled('div', `
-  position: absolute;
-  z-index: 10;
-  overflow: scroll;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-`);
-
 const cssScrollInner = styled('div', `
+  position: absolute;
   width: 100%;
-  height: 10000%;
+  height: 2500%;
 `);
 
 const cssCircleMessage = styled('div', `
@@ -214,7 +205,7 @@ const cssCircleCenter = styled('div', `
   position: absolute;
   top: 25%;
   left: 25%;
-  border: 6px dotted #00ca00;
+  border: 6px dashed #00ca00;
   border-radius: 100%;
   width: 50%;
   height: 50%;
@@ -281,7 +272,4 @@ const cssFracPart = styled('div', `
   &-sz6, &-sz7, &-sz8, &-sz9, &-sz10 { font-size: 9px; }
 `);
 
-dom.update(document.body,
-  {style: 'margin: 0; padding: 0'},
-  buildPage());
-
+dom.update(document.body, buildPage());
