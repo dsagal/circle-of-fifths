@@ -161,18 +161,13 @@ function buildLogCircle(owner: MultiHolder) {
         ),
         dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
         cssCircleCenter(),
-        cssCircumPart1(),
-        cssCircumPart2(
-          cssCircumPart2.cls('-filled', (use) => use(angle) <= -Math.PI),
-          dom.style('transform', (use) => {
-            const a = -use(angle);
-            const rotate = Math.PI / 4 + (
-              a < Math.PI ? a :
-              a < Math.PI * 2 ? a + Math.PI :
-              Math.PI
-            );
-            return `rotate(${rotate}rad)`;
-          })
+        cssCircumHalf1(),
+        cssCircumHalf2(
+          cssCircumHalf2.cls((use) => {
+            const halfTurns = -use(angle) / Math.PI;
+            return halfTurns < 1 ? '-start' : halfTurns < 2 ? '-middle' : '-end'
+          }),
+          dom.style('transform', (use) => `rotate(${-use(angle) + Math.PI / 4}rad)`),
         ),
         dom.forEach(marksBuilder(), ({label, value}) =>
           cssMarkCircle(cssTick(cssTick.cls('-short', !label)), label,
@@ -309,18 +304,30 @@ const cssCircumference = styled('div', `
   border: 3px solid transparent;
 `);
 
-const cssCircumPart1 = styled(cssCircumference, `
+// Together cssCirumHalfs form the appearance of the string wrapping partially around the wheel.
+const cssCircumHalf1 = styled(cssCircumference, `
   border-top-color: orange;
   border-right-color: orange;
   transform: rotate(45deg);
 `);
 
-const cssCircumPart2 = styled(cssCircumference, `
-  border-top-color: white;
-  border-right-color: white;
-  &-filled {
-    border-top-color: orange;
-    border-right-color: orange;
+const cssCircumHalf2 = styled(cssCircumference, `
+  &-start {
+    border-top-color: white;
+    border-right-color: white;
+    /* make the white portion wider to avoid a bit of orange leaking from under it */
+    top: -4px;
+    left: -4px;
+    bottom: -4px;
+    right: -4px;
+    border-width: 4px;
+  }
+  &-middle {
+    border-left-color: orange;
+    border-bottom-color: orange;
+  }
+  &-end {
+    border-color: orange;
   }
 `);
 
