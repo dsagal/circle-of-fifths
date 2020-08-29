@@ -44,11 +44,11 @@ const {factor, levelStep} = settings[0];
 const messages: Message[] = [
   {start: 1, msg: [
     dom('p', 'Imagine that the orange line is a rubber band.'),
-    dom('p', 'Scroll to turn the green wheel.')
+    dom('p', 'Scroll down to turn the green wheel.')
   ]},
-  {start: 0.75, msg: [
+  {start: 0.77, msg: [
     dom('p', 'The wheel is sticky. As it turns, the rubber band sticks to it, ',
-      'remaining as stretched as it was when it touched it.'),
+      'remaining as stretched as it was at the point of touching the wheel.'),
   ]},
   {start: 0.55, msg: [
     dom('p', 'Keep scrolling.'),
@@ -156,9 +156,6 @@ function buildLogCircle(owner: MultiHolder) {
     cssTitle('The Wheel of Logarithms'),
     cssLogCircle(
       cssCirclePart(
-        cssCircleMessage('Scroll page to turn',
-          dom.style('opacity', (use) => String(Math.max(0, 1 + use(angle) / Math.PI * 2))),
-        ),
         dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
         cssCircleCenter(),
         cssCircumHalf1(),
@@ -255,15 +252,6 @@ const cssScrollInner = styled('div', `
   position: absolute;
   width: 1px;
   height: 2500%;
-`);
-
-const cssCircleMessage = styled('div', `
-  position: absolute;
-  left: 0px;
-  top: 40%;
-  width: 100%;
-  text-align: center;
-  color: #ccc;
 `);
 
 const cssCirclePart = styled('div', `
@@ -438,6 +426,10 @@ const cssMessage = styled('div', `
   position: absolute;
   font-size: 18px;
   line-height: 1.5;
+  & i {
+    font-family: serif;
+    font-size: 20px;
+  }
 `);
 
 dom.update(document.body, cssBody.cls(''), buildPage());
