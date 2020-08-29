@@ -1,4 +1,5 @@
-import {Computed, dom, DomElementArg, DomContents, MultiHolder, Observable, styled} from 'grainjs';
+import {dom, DomElementArg, DomContents, styled} from 'grainjs';
+import {Computed, MultiHolder, Observable} from 'grainjs';
 
 interface Mark {
   value: number;
@@ -160,6 +161,19 @@ function buildLogCircle(owner: MultiHolder) {
         ),
         dom.style('transform', (use) => `rotate(${use(angle)}rad)`),
         cssCircleCenter(),
+        cssCircumPart1(),
+        cssCircumPart2(
+          cssCircumPart2.cls('-filled', (use) => use(angle) <= -Math.PI),
+          dom.style('transform', (use) => {
+            const a = -use(angle);
+            const rotate = Math.PI / 4 + (
+              a < Math.PI ? a :
+              a < Math.PI * 2 ? a + Math.PI :
+              Math.PI
+            );
+            return `rotate(${rotate}rad)`;
+          })
+        ),
         dom.forEach(marksBuilder(), ({label, value}) =>
           cssMarkCircle(cssTick(cssTick.cls('-short', !label)), label,
             dom.show((use) => {
@@ -168,7 +182,7 @@ function buildLogCircle(owner: MultiHolder) {
             }),
             (elem) => showCircleMark(elem, value),
           )
-        )
+        ),
       ),
       cssFlatPart(
         cssRuler(
@@ -179,6 +193,7 @@ function buildLogCircle(owner: MultiHolder) {
             ),
           )
         ),
+        cssRulerAnchor(),
       ),
     ),
     cssMessages(
@@ -258,9 +273,9 @@ const cssCircleMessage = styled('div', `
 
 const cssCirclePart = styled('div', `
   position: relative;
-  border: 3px solid orange;
-  box-shadow: inset 0 0 0 3px var(--wheel-color);
+  border: 3px solid transparent;
   border-radius: 100%;
+  box-shadow: inset 0 0 0 3px var(--wheel-color);
   width: ${circleRadiusPercent * 2}%;
   margin-right: -${circleRadiusPercent}%;
   display: flex;
@@ -284,6 +299,31 @@ const cssCircleCenter = styled('div', `
   height: 50%;
 `);
 
+const cssCircumference = styled('div', `
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  bottom: -3px;
+  right: -3px;
+  border-radius: 100%;
+  border: 3px solid transparent;
+`);
+
+const cssCircumPart1 = styled(cssCircumference, `
+  border-top-color: orange;
+  border-right-color: orange;
+  transform: rotate(45deg);
+`);
+
+const cssCircumPart2 = styled(cssCircumference, `
+  border-top-color: white;
+  border-right-color: white;
+  &-filled {
+    border-top-color: orange;
+    border-right-color: orange;
+  }
+`);
+
 const cssFlatPart = styled('div', `
   flex: auto;
   position: relative;
@@ -293,6 +333,16 @@ const cssRuler = styled('div', `
   position: relative;
   border-bottom: 3px solid orange;
   z-index: 2;
+`);
+
+const cssRulerAnchor = styled('div', `
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 10px;
+  background-color: orange;
 `);
 
 const cssMark = styled('div', `
