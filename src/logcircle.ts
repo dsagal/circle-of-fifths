@@ -54,7 +54,7 @@ const messages: Message[] = [
     dom('p', 'Keep scrolling.'),
   ]},
   {start: 0.40, msg: [
-    dom('p', 'Notice how the new ticks on the wheel end up more spread out.'),
+    dom('p', 'Notice how the new ticks on the wheel end up more spread out than the first ticks.'),
   ]},
   {start: 0.30, msg: [
     dom('p', 'Keep scrolling.'),
